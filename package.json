@@ -1,0 +1,27 @@
+{
+  "name": "stellar-account-helper",
+  "version": "0.0.1",
+  "description": "Wrapper around account creation on the stellar network",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hanseartic/stellar-account-helper.git"
+  },
+  "keywords": [
+    "stellar-network",
+    "stellar",
+    "xlm"
+  ],
+  "author": "hanseartic",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/hanseartic/stellar-account-helper/issues"
+  },
+  "homepage": "https://github.com/hanseartic/stellar-account-helper#readme",
+  "dependencies": {
+    "stellar-sdk": "^8.2.5"
+  }
+}
