@@ -1,4 +1,5 @@
-const { BASE_FEE, Keypair, Networks, Operation, Server, TransactionBuilder } = require("stellar-sdk");
+const { BASE_FEE, Keypair, Memo, Networks, Operation, Server, TransactionBuilder } = require("stellar-sdk");
+const BigNumber = require('bignumber.js');
 const assert = require('assert');
 
 const supportedNetworks = {
@@ -47,14 +48,16 @@ class AccountHelper {
      *
      * @param {object} createAccountOptions Options for the case
      *                                      the account needs to be created.
-     * @param {number} [createAccountOptions.funds] Amount to fund the account with (defaults to 5000)
+     * @param {number} [createAccountOptions.funds] Amount to fund the account with (defaults to 0 - creating a sponsored account)
      * @param {Keypair} [createAccountOptions.sponsorKeypair] Keypair of account to create new account from
-     *                  The Keypair must contain a secret key.
+     *                  The Keypair must contain a secret key. If this is the same as the account to be created no intermediate
+     *                  sponsor account will be created - works only on testnet where friendbot can be asked.
+     * @param {boolean} [createAccountOptions.anonymousSponsor] Indicates if the sponsor secret is known or not
      */
     async getFunded (createAccountOptions = {}) {
         const keypair = this.accountKeypair;
         const server = this.selectedNetwork.getServer();
-        const fundBalance = `${(createAccountOptions.funds || 5000)}`;
+        const fundBalance = `${(createAccountOptions.funds || 0)}`;
         return await server.loadAccount(keypair.publicKey())
             .then(account => {
                 console.log('Account already exists - not funding.');
@@ -63,17 +66,45 @@ class AccountHelper {
             .catch(() => {
                 const fundingKeypair = createAccountOptions.sponsorKeypair || Keypair.random();
                 assert(fundingKeypair.canSign(), 'sponsorKeypair must contain a secret in order to sign.');
+                if (new BigNumber(fundBalance).isZero()) {
+                    assert(keypair.canSign(), 'In order to create a sponsored account the secret must be provided');
+                }
                 return server.loadAccount(fundingKeypair.publicKey())
                     .then(fundingAccount => {
                         console.log(`Account does not exist - funding with ${fundBalance} XLM.`);
-                        const transaction = new TransactionBuilder(fundingAccount, this.selectedNetwork.transactionOptions)
-                            .addOperation(Operation.createAccount({
-                                destination: keypair.publicKey(),
-                                startingBalance: fundBalance,
-                            }))
+                        const transactionBuilder = new TransactionBuilder(fundingAccount, this.selectedNetwork.transactionOptions);
+                        if (keypair.canSign()) {
+                            transactionBuilder.addOperation(Operation.beginSponsoringFutureReserves({
+                                sponsoredId: keypair.publicKey(),
+                            }));
+                        }
+                        transactionBuilder.addOperation(Operation.createAccount({
+                            destination: keypair.publicKey(),
+                            startingBalance: fundBalance,
+                        }))
+                        if (createAccountOptions.anonymousSponsor) {
+                            transactionBuilder.addOperation(Operation.setOptions({
+                                signer: {
+                                    ed25519PublicKey: keypair.publicKey(),
+                                    weight: 1,
+                                },
+                            }));
+                        }
+                        if (keypair.canSign()) {
+                            transactionBuilder.addOperation(Operation.endSponsoringFutureReserves({
+                                source: keypair.publicKey(),
+                            }));
+                        }
+                        const transaction = transactionBuilder
+                            .addMemo(Memo.text('stellar-account-helper'))
                             .setTimeout(0)
                             .build();
+
                         transaction.sign(fundingKeypair);
+                        if (keypair.canSign()) {
+                            transaction.sign(keypair);
+                        }
+
                         return server.submitTransaction(transaction)
                             .then(() => server.loadAccount(keypair.publicKey()))
                             .catch(err => {
@@ -82,11 +113,15 @@ class AccountHelper {
                             });
                     })
                     .catch(err => {
-                        console.log('Funding account does not exist - asking a friend(ly) bot.');
+                        const isDirect = fundingKeypair.publicKey() === keypair.publicKey();
+                        console.log((isDirect?'Requested':'Funding')+' account does not exist - asking a friend(ly) bot.');
                         return server.friendbot(fundingKeypair.publicKey()).call()
-                            .then(() => this.getFunded({
-                                funds: fundBalance,
-                                sponsorKeypair: fundingKeypair,
+                            .then(() => isDirect
+                                ? server.loadAccount(fundingKeypair.publicKey())
+                                : this.getFunded({
+                                    funds: fundBalance,
+                                    sponsorKeypair: fundingKeypair,
+                                    anonymousSponsor: true,
                             }));
                     });
             });
@@ -107,8 +142,8 @@ const test_getFunded_Works_with_default_funds = async function() {
         .getFunded();
 
     assert(
-        new BigNumber(newAccount.balances[0].balance).eq(5000),
-        'New account is expected to hold 5000 XLM.'
+        new BigNumber(newAccount.balances[0].balance).eq(0),
+        'New account is expected to hold 0 XLM.'
     );
     return true;
 };
