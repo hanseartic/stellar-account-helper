@@ -19,6 +19,7 @@ const supportedNetworks = {
  *
  * Use the following methods to interact with an account object:
  * * `{@link AccountHelper.getFunded}`
+ * * `{@link AccountHelper.getCreatedCursor}`
  *
  * @constructor
  * @param {string} id The id for the account to interact with. Can either be the private or the public key
@@ -125,6 +126,26 @@ class AccountHelper {
                             }));
                     });
             });
+    };
+
+    /**
+     * Retrieves the cursor for the latest 'create_account' operation of the account
+     *
+     * @param {string} accountId ID of the account to check
+     * @param {string} network the network to use (defaults to TESTNET)
+     * @returns {Promise<string>} Successful promise when a create_account operation could be found within the last 200 operation - fail else
+     */
+    static getCreatedCursor(accountId, network) {
+        const lookBack = 200;
+        const server = supportedNetworks.hasOwnProperty(network) ? supportedNetworks[network].getServer() : supportedNetworks.TESTNET.getServer();
+        return server.loadAccount(accountId)
+            .then(account => server.operations().forAccount(account.id).order('desc').limit(lookBack).call())
+            .then(({records}) => records.find(r => r.type === 'create_account'))
+            .then(createAccountOperation => createAccountOperation?.paging_token)
+            .then(latestCreateAccountOperationCursor => latestCreateAccountOperationCursor
+                ? Promise.resolve(latestCreateAccountOperationCursor)
+                : Promise.reject(`No 'create_account' operation within the last ${lookBack} operations`)
+            );
     };
 
     async reset() {

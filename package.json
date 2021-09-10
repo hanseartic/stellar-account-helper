@@ -1,6 +1,6 @@
 {
   "name": "stellar-account-helper",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Wrapper around account creation on the stellar network",
   "main": "index.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "url": "git+https://github.com/hanseartic/stellar-account-helper.git"
   },
   "keywords": [
+    "blockchain",
     "stellar-network",
     "stellar",
     "xlm"
