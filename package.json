@@ -1,6 +1,6 @@
 {
   "name": "stellar-account-helper",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Wrapper around account creation on the stellar network",
   "main": "index.js",
   "scripts": {
@@ -23,6 +23,6 @@
   },
   "homepage": "https://github.com/hanseartic/stellar-account-helper#readme",
   "dependencies": {
-    "stellar-sdk": "^8.2.5"
+    "stellar-sdk": "^9.0.1"
   }
 }
